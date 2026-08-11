@@ -32,7 +32,7 @@ jobs:
       - name: Build
         run: dotnet build DocuSearch.NET.sln --configuration ${{ env.CONFIGURATION }} --no-restore
 
-      - name: Publish self-contained (no .NET install needed by users)
+      - name: Publish self-contained
         run: |
           dotnet publish src/DocuSearch.Avalonia/DocuSearch.Avalonia.csproj `
             --configuration ${{ env.CONFIGURATION }} `
@@ -44,17 +44,45 @@ jobs:
             -p:EnableCompressionInSingleFile=true
         shell: pwsh
 
+      - name: Download BGE model
+        shell: pwsh
+        run: |
+          $dst = "build\publish\models\bge-small-en-v1.5"
+          New-Item -ItemType Directory -Path $dst -Force | Out-Null
+          $ProgressPreference = 'SilentlyContinue'
+
+          $files = @(
+            @{ Name = "model.onnx"; Url = "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx"; MinSize = 40MB }
+          )
+
+          foreach ($f in $files) {
+            $destPath = Join-Path $dst $f.Name
+            for ($i = 1; $i -le 3; $i++) {
+              try {
+                Invoke-WebRequest -Uri $f.Url -OutFile $destPath -UseBasicParsing -UserAgent "Mozilla/5.0" -TimeoutSec 120
+                $size = (Get-Item $destPath).Length
+                if ($size -ge $f.MinSize) { Write-Host "OK: $($f.Name) ($([math]::Round($size/1MB,1)) MB)"; break }
+              } catch {
+                if ($i -ge 3) { throw "Failed to download $($f.Name)" }
+                Start-Sleep 5
+              }
+            }
+          }
+
       - name: Verify output
         shell: pwsh
         run: |
           $exe = "build\publish\DocuSearch.Avalonia.exe"
           if (Test-Path $exe) {
             $size = (Get-Item $exe).Length
-            $sizeMB = [math]::Round($size / 1MB, 1)
-            Write-Host "DocuSearch.Avalonia.exe built successfully ($sizeMB MB)"
-          } else {
-            throw "DocuSearch.Avalonia.exe not found"
-          }
+            Write-Host "Exe size: $([math]::Round($size/1MB,1)) MB"
+          } else { throw "exe not found" }
+
+          $model = "build\publish\models\bge-small-en-v1.5\model.onnx"
+          if (Test-Path $model) {
+            $msize = (Get-Item $model).Length
+            Write-Host "BGE model: $([math]::Round($msize/1MB,1)) MB"
+          } else { Write-Host "WARNING: BGE model not found" }
 
       - name: Create portable ZIP
         shell: pwsh
@@ -62,8 +90,7 @@ jobs:
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
           Compress-Archive -Path "build\publish\*" -DestinationPath "dist\DocuSearch.NET-portable.zip" -CompressionLevel Optimal
           $size = (Get-Item "dist\DocuSearch.NET-portable.zip").Length
-          $sizeMB = [math]::Round($size / 1MB, 1)
-          Write-Host "Portable ZIP created ($sizeMB MB)"
+          Write-Host "Portable ZIP: $([math]::Round($size/1MB,1)) MB"
 
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v5

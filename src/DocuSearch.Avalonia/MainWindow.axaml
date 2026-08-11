@@ -10,9 +10,9 @@
         WindowState="Maximized">
 
     <DockPanel>
-        <!-- Top bar -->
+        <!-- ── Top Bar ── -->
         <Border DockPanel.Dock="Top" Background="#171E29" Padding="16,10">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                     <TextBlock Text="📋" FontSize="20" VerticalAlignment="Center"/>
                     <TextBlock Text="DocuSearch" FontWeight="Bold" FontSize="16" Foreground="#E9EEF6"/>
@@ -27,31 +27,36 @@
 
                 <Button Grid.Column="2" Classes="golden" Content="Search" Margin="6,0"
                         Command="{Binding SearchCommand}"/>
-
-                <Button Grid.Column="3" Classes="golden" Content="Extract" Margin="6,0"
+                <Button Grid.Column="3" Classes="subtle" Content="📁 Add Folder" Margin="6,0"
+                        Command="{Binding AddFolderCommand}"/>
+                <Button Grid.Column="4" Classes="golden" Content="Extract" Margin="6,0"
                         Command="{Binding ExtractCommand}"/>
+                <Button Grid.Column="5" Classes="subtle" Content="Duplicates" Margin="6,0"
+                        Command="{Binding FindDuplicatesCommand}"/>
             </Grid>
         </Border>
 
-        <!-- Status bar -->
+        <!-- ── Status Bar ── -->
         <Border DockPanel.Dock="Bottom" Background="#171E29" Padding="16,6">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" Foreground="#97A6BA" FontSize="11"
                            VerticalAlignment="Center"/>
                 <TextBlock Grid.Column="1" Text="{Binding IndexedCount}" Classes="mono" Margin="12,0,0,0"
                            VerticalAlignment="Center"/>
                 <Button Grid.Column="2" Classes="subtle" Content="{Binding OcrStatusText}"
                         Margin="12,0,0,0" FontSize="11"/>
-                <Button Grid.Column="3" Classes="subtle" Content="{Binding ThemeToggleText}"
+                <Button Grid.Column="3" Classes="subtle" Content="{Binding SemanticToggleText}"
+                        Margin="6,0,0,0" FontSize="11" Command="{Binding ToggleSemanticCommand}"/>
+                <Button Grid.Column="4" Classes="subtle" Content="{Binding ThemeToggleText}"
                         Margin="6,0,0,0" FontSize="11" Command="{Binding ToggleThemeCommand}"/>
-                <Button Grid.Column="4" Classes="subtle" Content="📁 Open"
+                <Button Grid.Column="5" Classes="subtle" Content="📁 Open"
                         Margin="6,0,0,0" Command="{Binding OpenLocationCommand}"/>
             </Grid>
         </Border>
 
-        <!-- Main 3-panel layout using Grid with proportional columns -->
+        <!-- ── Main 3-panel layout ── -->
         <Grid ColumnDefinitions="*,2*,1">
-            <!-- Column 0: Results -->
+            <!-- LEFT: Search results -->
             <Grid Grid.Column="0">
                 <Border Classes="panel" Padding="8">
                     <DockPanel>
@@ -90,7 +95,7 @@
                 </Border>
             </Grid>
 
-            <!-- Column 1: Preview -->
+            <!-- CENTER: Preview -->
             <Grid Grid.Column="1">
                 <Border Classes="panel">
                     <DockPanel>
@@ -106,11 +111,11 @@
                 </Border>
             </Grid>
 
-            <!-- Column 2: Metadata + Tags + Notes -->
+            <!-- RIGHT: Metadata + Tags + Notes -->
             <Grid Grid.Column="2">
                 <Border Classes="panel">
                     <ScrollViewer Background="Transparent">
-                        <StackPanel Spacing="0" Margin="0">
+                        <StackPanel Spacing="0">
                             <TextBlock Text="METADATA" Classes="mono" Margin="12,12,12,8"/>
                             <StackPanel Margin="12,0,12,12" Spacing="4">
                                 <TextBlock Text="Path" Classes="mono"/>
