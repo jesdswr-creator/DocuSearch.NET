@@ -59,8 +59,11 @@ jobs:
       - name: Create portable ZIP
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
           Compress-Archive -Path "build\publish\*" -DestinationPath "dist\DocuSearch.NET-portable.zip" -CompressionLevel Optimal
-          Write-Host "Portable ZIP created"
+          $size = (Get-Item "dist\DocuSearch.NET-portable.zip").Length
+          $sizeMB = [math]::Round($size / 1MB, 1)
+          Write-Host "Portable ZIP created ($sizeMB MB)"
 
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v5
