@@ -1,0 +1,77 @@
+name: Build DocuSearch.NET
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  CONFIGURATION: Release
+
+jobs:
+  build-windows:
+    name: Build on Windows Server 2022
+    runs-on: windows-2022
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore DocuSearch.NET.sln
+
+      - name: Build
+        run: dotnet build DocuSearch.NET.sln --configuration ${{ env.CONFIGURATION }} --no-restore
+
+      - name: Publish self-contained (no .NET install needed by users)
+        run: |
+          dotnet publish src/DocuSearch.Avalonia/DocuSearch.Avalonia.csproj `
+            --configuration ${{ env.CONFIGURATION }} `
+            --runtime win-x64 `
+            --self-contained true `
+            --output build/publish `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true
+        shell: pwsh
+
+      - name: Verify output
+        shell: pwsh
+        run: |
+          $exe = "build\publish\DocuSearch.Avalonia.exe"
+          if (Test-Path $exe) {
+            $size = (Get-Item $exe).Length
+            $sizeMB = [math]::Round($size / 1MB, 1)
+            Write-Host "DocuSearch.Avalonia.exe built successfully ($sizeMB MB)"
+          } else {
+            throw "DocuSearch.Avalonia.exe not found"
+          }
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build\publish\*" -DestinationPath "dist\DocuSearch.NET-portable.zip" -CompressionLevel Optimal
+          Write-Host "Portable ZIP created"
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v5
+        with:
+          name: DocuSearch.NET-portable
+          path: dist/DocuSearch.NET-portable.zip
+          retention-days: 30
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: DocuSearch.NET-portable.zip
+          subject-digest: sha256:${{ hashFiles('dist/DocuSearch.NET-portable.zip') }}
+          push-to-registry: false

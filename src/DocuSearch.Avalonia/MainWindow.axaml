@@ -1,0 +1,157 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DocuSearch.Avalonia.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="900"
+        x:Class="DocuSearch.Avalonia.MainWindow"
+        Title="DocuSearch" Width="1400" Height="900"
+        Background="#131922"
+        WindowState="Maximized">
+
+    <DockPanel>
+        <!-- Top bar -->
+        <Border DockPanel.Dock="Top" Background="#171E29" Padding="16,10">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="📋" FontSize="20" VerticalAlignment="Center"/>
+                    <TextBlock Text="DocuSearch" FontWeight="Bold" FontSize="16" Foreground="#E9EEF6"/>
+                    <Border Background="#1D2532" CornerRadius="5" Padding="6,2" Margin="6,0,0,0">
+                        <TextBlock Text="v2.0" FontSize="10" Foreground="#62718A" FontFamily="Cascadia Code, Consolas"/>
+                    </Border>
+                </StackPanel>
+
+                <TextBox Grid.Column="1" x:Name="SearchBox" Classes="searchBox" Margin="16,0"
+                         Watermark="Search documents..." Text="{Binding SearchQuery}"
+                         KeyDown="OnSearchKeyDown"/>
+
+                <Button Grid.Column="2" Classes="golden" Content="Search" Margin="6,0"
+                        Command="{Binding SearchCommand}"/>
+
+                <Button Grid.Column="3" Classes="golden" Content="Extract" Margin="6,0"
+                        Command="{Binding ExtractCommand}"/>
+            </Grid>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Background="#171E29" Padding="16,6">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" Foreground="#97A6BA" FontSize="11"
+                           VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="{Binding IndexedCount}" Classes="mono" Margin="12,0,0,0"
+                           VerticalAlignment="Center"/>
+                <Button Grid.Column="2" Classes="subtle" Content="{Binding OcrStatusText}"
+                        Margin="12,0,0,0" FontSize="11"/>
+                <Button Grid.Column="3" Classes="subtle" Content="{Binding ThemeToggleText}"
+                        Margin="6,0,0,0" FontSize="11" Command="{Binding ToggleThemeCommand}"/>
+                <Button Grid.Column="4" Classes="subtle" Content="📁 Open"
+                        Margin="6,0,0,0" Command="{Binding OpenLocationCommand}"/>
+            </Grid>
+        </Border>
+
+        <!-- Main 3-panel layout using Grid with proportional columns -->
+        <Grid ColumnDefinitions="*,2*,1">
+            <!-- Column 0: Results -->
+            <Grid Grid.Column="0">
+                <Border Classes="panel" Padding="8">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Search Results" Classes="title" Margin="8,4,8,8"/>
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding ResultCountText}" Classes="mono" Margin="8,0,8,8"/>
+                        <ListBox x:Name="ResultsList" Background="Transparent" BorderThickness="0"
+                                 ItemsSource="{Binding SearchResults}" SelectedIndex="{Binding SelectedResultIndex}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="Transparent" CornerRadius="8" Padding="8" Margin="0,2">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <Border Width="36" Height="36" CornerRadius="8"
+                                                    Background="{Binding BadgeColor}" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding BadgeLabel}" Foreground="White"
+                                                           FontWeight="Bold" FontSize="10"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Filename}" FontWeight="Bold"
+                                                           Foreground="#E9EEF6" FontSize="13"/>
+                                                <TextBlock Text="{Binding Snippet}" Foreground="#97A6BA"
+                                                           FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding MetaLine}" Classes="mono"/>
+                                            </StackPanel>
+                                            <Border Background="#1A2A1A" CornerRadius="5" Padding="7,2"
+                                                    IsVisible="{Binding HasScore}" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding ScoreText}" Foreground="#F4A83A"
+                                                           FontFamily="Cascadia Code, Consolas" FontSize="11"/>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <!-- Column 1: Preview -->
+            <Grid Grid.Column="1">
+                <Border Classes="panel">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Background="#171E29" Padding="12,8"
+                                BorderBrush="#28323F" BorderThickness="0,0,0,1">
+                            <TextBlock Text="{Binding PreviewTitle}" Classes="title"/>
+                        </Border>
+                        <TextBox Text="{Binding PreviewText}" IsReadOnly="True"
+                                 Background="#171E29" Foreground="#97A6BA" BorderThickness="0"
+                                 Padding="12" FontSize="12" AcceptsReturn="True"
+                                 TextWrapping="Wrap"/>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <!-- Column 2: Metadata + Tags + Notes -->
+            <Grid Grid.Column="2">
+                <Border Classes="panel">
+                    <ScrollViewer Background="Transparent">
+                        <StackPanel Spacing="0" Margin="0">
+                            <TextBlock Text="METADATA" Classes="mono" Margin="12,12,12,8"/>
+                            <StackPanel Margin="12,0,12,12" Spacing="4">
+                                <TextBlock Text="Path" Classes="mono"/>
+                                <TextBlock Text="{Binding SelectedFilePath}" Foreground="#E9EEF6" FontSize="12" TextWrapping="Wrap"/>
+                                <TextBlock Text="Size" Classes="mono" Margin="0,8,0,0"/>
+                                <TextBlock Text="{Binding SelectedFileSize}" Foreground="#E9EEF6" FontSize="12"/>
+                                <TextBlock Text="Modified" Classes="mono" Margin="0,8,0,0"/>
+                                <TextBlock Text="{Binding SelectedFileDate}" Foreground="#E9EEF6" FontSize="12"/>
+                                <TextBlock Text="Hash" Classes="mono" Margin="0,8,0,0"/>
+                                <TextBlock Text="{Binding SelectedFileHash}" Classes="mono" FontSize="11"/>
+                            </StackPanel>
+
+                            <Separator Background="#28323F" Margin="0,8"/>
+
+                            <TextBlock Text="TAGS" Classes="mono" Margin="12,8,12,8"/>
+                            <ItemsControl ItemsSource="{Binding Tags}" Margin="12,0,12,12">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#1D2532" CornerRadius="14" Padding="9,3" Margin="0,0,4,4">
+                                            <TextBlock Text="{Binding}" Foreground="#E9EEF6" FontSize="11"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Separator Background="#28323F" Margin="0,8"/>
+
+                            <TextBlock Text="NOTES" Classes="mono" Margin="12,8,12,8"/>
+                            <TextBox Text="{Binding Notes}" AcceptsReturn="True" TextWrapping="Wrap"
+                                     Background="#171E29" Foreground="#E9EEF6" BorderBrush="#28323F"
+                                     CornerRadius="8" Padding="10" Margin="12,0,12,16"
+                                     MinHeight="80" Watermark="Add notes..."/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+        </Grid>
+    </DockPanel>
+</Window>

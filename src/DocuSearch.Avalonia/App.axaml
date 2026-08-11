@@ -1,0 +1,94 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DocuSearch.Avalonia.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Resources>
+        <Color x:Key="AmberPrimary">#F4A83A</Color>
+        <Color x:Key="AmberLight">#FFBE5C</Color>
+        <Color x:Key="AmberDark">#B97708</Color>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <Style Selector="Window">
+            <Setter Property="Background" Value="#131922"/>
+        </Style>
+
+        <Style Selector="TextBox.searchBox">
+            <Setter Property="Background" Value="#171E29"/>
+            <Setter Property="Foreground" Value="#E9EEF6"/>
+            <Setter Property="BorderBrush" Value="#313D4D"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+        <Style Selector="TextBox.searchBox:focus">
+            <Setter Property="BorderBrush" Value="#F4A83A"/>
+        </Style>
+
+        <Style Selector="Button.golden">
+            <Setter Property="Background" Value="#F4A83A"/>
+            <Setter Property="Foreground" Value="#2A1C02"/>
+            <Setter Property="FontWeight" Value="600"/>
+            <Setter Property="CornerRadius" Value="9"/>
+            <Setter Property="Padding" Value="18,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="Button.golden:pointerover">
+            <Setter Property="Background" Value="#FFBE5C"/>
+        </Style>
+        <Style Selector="Button.golden:pressed">
+            <Setter Property="Background" Value="#B97708"/>
+        </Style>
+
+        <Style Selector="Button.subtle">
+            <Setter Property="Background" Value="#222C3B"/>
+            <Setter Property="Foreground" Value="#E9EEF6"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="Button.subtle:pointerover">
+            <Setter Property="Background" Value="#2D3848"/>
+        </Style>
+
+        <Style Selector="ListBoxItem.resultCard">
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <Style Selector="ListBoxItem.resultCard:pointerover">
+            <Setter Property="Background" Value="#1D2532"/>
+        </Style>
+        <Style Selector="ListBoxItem.resultCard:selected">
+            <Setter Property="Background" Value="#1A1F2E"/>
+        </Style>
+
+        <Style Selector="Border.panel">
+            <Setter Property="Background" Value="#171E29"/>
+            <Setter Property="BorderBrush" Value="#28323F"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        </Style>
+
+        <Style Selector="TextBlock.title">
+            <Setter Property="Foreground" Value="#E9EEF6"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+        <Style Selector="TextBlock.subtitle">
+            <Setter Property="Foreground" Value="#97A6BA"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style Selector="TextBlock.mono">
+            <Setter Property="FontFamily" Value="Cascadia Code, Consolas, monospace"/>
+            <Setter Property="Foreground" Value="#62718A"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style Selector="TextBlock.amberText">
+            <Setter Property="Foreground" Value="#F4A83A"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+    </Application.Styles>
+</Application>

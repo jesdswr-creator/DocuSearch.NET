@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{29296A57-6072-4D7F-BB32-773025B4E936}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocuSearch.Core", "src\DocuSearch.Core\DocuSearch.Core.csproj", "{25DD05C5-F068-4B46-9182-5C9649207020}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocuSearch.Avalonia", "src\DocuSearch.Avalonia\DocuSearch.Avalonia.csproj", "{3AE62128-DB19-4B0F-B285-5AFD84CF4ECB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{25DD05C5-F068-4B46-9182-5C9649207020}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{25DD05C5-F068-4B46-9182-5C9649207020}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{25DD05C5-F068-4B46-9182-5C9649207020}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{25DD05C5-F068-4B46-9182-5C9649207020}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3AE62128-DB19-4B0F-B285-5AFD84CF4ECB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3AE62128-DB19-4B0F-B285-5AFD84CF4ECB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3AE62128-DB19-4B0F-B285-5AFD84CF4ECB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3AE62128-DB19-4B0F-B285-5AFD84CF4ECB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{25DD05C5-F068-4B46-9182-5C9649207020} = {29296A57-6072-4D7F-BB32-773025B4E936}
+		{3AE62128-DB19-4B0F-B285-5AFD84CF4ECB} = {29296A57-6072-4D7F-BB32-773025B4E936}
+	EndGlobalSection
+EndGlobal
