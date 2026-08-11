@@ -214,16 +214,30 @@ public partial class MainViewModel : ObservableObject
     {
         if (MainWindow == null || _indexer == null) return;
 
-        var folders = await MainWindow.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        try
         {
-            Title = "Select Folder to Index",
-            AllowMultiple = false
-        });
+            var folders = await MainWindow.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Select Folder to Index",
+                AllowMultiple = false
+            });
 
-        if (folders.Count == 0) return;
+            if (folders.Count == 0) return;
 
-        var folder = folders[0].Path.LocalPath;
-        StatusText = $"Scanning {folder}…";
+            var folder = folders[0].Path.LocalPath;
+            await ScanAndIndex(folder);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Add folder error: {ex.Message}";
+        }
+    }
+
+    private async Task ScanAndIndex(string folder)
+    {
+        if (_indexer == null) return;
+
+        StatusText = $"Scanning {Path.GetFileName(folder)}…";
 
         if (!_settings.IndexedDrives.Contains(folder))
         {
@@ -233,7 +247,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         var count = await _indexer.ScanFolderAsync(folder);
-        StatusText = $"Scanned {count} files. Starting extraction…";
+        StatusText = $"Found {count} files. Extracting…";
         await Extract();
         UpdateIndexedCount();
     }
