@@ -7,10 +7,11 @@ on:
 
 env:
   DOTNET_VERSION: '8.0.x'
+  CONFIGURATION: Release
 
 jobs:
   build-windows:
-    name: Build on Windows
+    name: Build on Windows Server 2022
     runs-on: windows-2022
     permissions:
       contents: write
@@ -25,19 +26,20 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore
+      - name: Restore dependencies
         run: dotnet restore DocuSearch.NET.sln
 
       - name: Build
-        run: dotnet build DocuSearch.NET.sln --configuration Release --no-restore
+        run: dotnet build DocuSearch.NET.sln --configuration ${{ env.CONFIGURATION }} --no-restore
 
-      - name: Publish self-contained
+      - name: Publish self-contained (single exe + all DLLs)
         run: |
           dotnet publish src/DocuSearch.Avalonia/DocuSearch.Avalonia.csproj `
-            --configuration Release `
+            --configuration ${{ env.CONFIGURATION }} `
             --runtime win-x64 `
             --self-contained true `
-            --output build/publish
+            --output build/publish `
+            -p:PublishSingleFile=false
         shell: pwsh
 
       - name: Download BGE model
@@ -46,40 +48,56 @@ jobs:
           $dst = "build\publish\models\bge-small-en-v1.5"
           New-Item -ItemType Directory -Path $dst -Force | Out-Null
           $ProgressPreference = 'SilentlyContinue'
-          $url = "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx"
-          $dest = Join-Path $dst "model.onnx"
-          for ($i = 1; $i -le 3; $i++) {
-            try {
-              Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing -UserAgent "Mozilla/5.0" -TimeoutSec 120
-              if ((Get-Item $dest).Length -ge 40MB) { Write-Host "OK: model.onnx"; break }
-            } catch { if ($i -ge 3) { throw }; Start-Sleep 5 }
+
+          $files = @(
+            @{ Name = "model.onnx"; Url = "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx"; MinSize = 40MB }
+          )
+
+          foreach ($f in $files) {
+            $destPath = Join-Path $dst $f.Name
+            for ($i = 1; $i -le 3; $i++) {
+              try {
+                Invoke-WebRequest -Uri $f.Url -OutFile $destPath -UseBasicParsing -UserAgent "Mozilla/5.0" -TimeoutSec 120
+                $size = (Get-Item $destPath).Length
+                if ($size -ge $f.MinSize) { Write-Host "OK: $($f.Name) ($([math]::Round($size/1MB,1)) MB)"; break }
+              } catch {
+                if ($i -ge 3) { throw "Failed to download $($f.Name)" }
+                Start-Sleep 5
+              }
+            }
           }
 
-      - name: Verify
+      - name: Verify output
         shell: pwsh
         run: |
           $exe = "build\publish\DocuSearch.Avalonia.exe"
-          if (Test-Path $exe) { Write-Host "Exe: $([math]::Round((Get-Item $exe).Length/1MB,1)) MB" }
-          else { throw "exe not found" }
-          $model = "build\publish\models\bge-small-en-v1.5\model.onnx"
-          if (Test-Path $model) { Write-Host "Model: $([math]::Round((Get-Item $model).Length/1MB,1)) MB" }
-          else { Write-Host "WARNING: model not found" }
+          if (Test-Path $exe) {
+            $size = (Get-Item $exe).Length
+            Write-Host "Exe size: $([math]::Round($size/1MB,1)) MB"
+          } else { throw "exe not found" }
 
-      - name: Create ZIP
+          $model = "build\publish\models\bge-small-en-v1.5\model.onnx"
+          if (Test-Path $model) {
+            $msize = (Get-Item $model).Length
+            Write-Host "BGE model: $([math]::Round($msize/1MB,1)) MB"
+          } else { Write-Host "WARNING: BGE model not found" }
+
+      - name: Create portable ZIP
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
-          Compress-Archive -Path "build\publish\*" -DestinationPath "dist\DocuSearch.NET-portable.zip"
-          Write-Host "ZIP: $([math]::Round((Get-Item 'dist\DocuSearch.NET-portable.zip').Length/1MB,1)) MB"
+          Compress-Archive -Path "build\publish\*" -DestinationPath "dist\DocuSearch.NET-portable.zip" -CompressionLevel Optimal
+          $size = (Get-Item "dist\DocuSearch.NET-portable.zip").Length
+          Write-Host "Portable ZIP: $([math]::Round($size/1MB,1)) MB"
 
-      - name: Upload
+      - name: Upload portable ZIP
         uses: actions/upload-artifact@v5
         with:
           name: DocuSearch.NET-portable
           path: dist/DocuSearch.NET-portable.zip
           retention-days: 30
 
-      - name: Attest
+      - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
           subject-name: DocuSearch.NET-portable.zip

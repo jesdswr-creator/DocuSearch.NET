@@ -14,6 +14,7 @@ class Program
         }
         catch (Exception ex)
         {
+            // Write to a crash file so the user can see what happened
             var crashPath = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "DocuSearch", "crash.txt");
@@ -24,6 +25,7 @@ class Program
                     $"{DateTime.Now}\n\n{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}");
             }
             catch { }
+            throw; // Re-throw so Windows shows the crash dialog
         }
     }
 
