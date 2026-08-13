@@ -16,10 +16,10 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = new MainViewModel()
-            };
+            var vm = new MainViewModel();
+            var window = new MainWindow { DataContext = vm };
+            vm.MainWindow = window;
+            desktop.MainWindow = window;
         }
         base.OnFrameworkInitializationCompleted();
     }

@@ -17,18 +17,12 @@ public partial class MainWindow : Window
     protected override void OnLoaded(RoutedEventArgs e)
     {
         base.OnLoaded(e);
-        if (ViewModel != null)
-        {
-            ViewModel.MainWindow = this;
-            ViewModel.Initialize();
-        }
+        ViewModel?.Initialize();
     }
 
     private void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && ViewModel != null)
-        {
-            ViewModel.SearchCommand.Execute(null);
-        }
+        if (e.Key == Key.Enter)
+            ViewModel?.SearchCommand.Execute(null);
     }
 }
