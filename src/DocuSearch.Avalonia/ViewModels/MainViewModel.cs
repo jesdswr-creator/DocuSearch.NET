@@ -48,7 +48,17 @@ public class MainViewModel : ViewModelBase
     public string ResultCountText { get => _resultCountText; set => SetProperty(ref _resultCountText, value); }
     public string PreviewTitle { get => _previewTitle; set => SetProperty(ref _previewTitle, value); }
     public string PreviewText { get => _previewText; set => SetProperty(ref _previewText, value); }
-    public int SelectedResultIndex { get => _selectedResultIndex; set => SetProperty(ref _selectedResultIndex, value); }
+    public int SelectedResultIndex
+    {
+        get => _selectedResultIndex;
+        set
+        {
+            if (SetProperty(ref _selectedResultIndex, value))
+            {
+                OnSelectedResultIndexChanged();
+            }
+        }
+    }
     public ObservableCollection<string> Tags { get => _tags; set => SetProperty(ref _tags, value); }
     public string Notes { get => _notes; set => SetProperty(ref _notes, value); }
     public string SelectedFileSize { get => _selectedFileSize; set => SetProperty(ref _selectedFileSize, value); }

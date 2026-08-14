@@ -69,7 +69,7 @@
                         <TextBlock Text="{Binding ResultCountText}" Foreground="#999999" FontSize="11"/>
                     </StackPanel>
                     <Border DockPanel.Dock="Top" Height="1" Background="#F5F5F5"/>
-                    <ListBox ItemsSource="{Binding SearchResults}" SelectedIndex="{Binding SelectedResultIndex}" Padding="4">
+                    <ListBox x:Name="ResultsList" ItemsSource="{Binding SearchResults}" SelectedIndex="{Binding SelectedResultIndex}" Padding="4">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Spacing="3" Margin="4,4">
