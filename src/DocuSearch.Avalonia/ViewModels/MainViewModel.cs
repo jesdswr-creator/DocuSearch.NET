@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using Avalonia.Controls;
-using Avalonia.Platform.Storage;
+using global::Avalonia.Controls;
+using global::Avalonia.Platform.Storage;
+using global::Avalonia.Media;
+using global::Avalonia.Layout;
+using global::Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DocuSearch.Core.Data;
@@ -18,19 +21,18 @@ public partial class MainViewModel : ObservableObject
     private ExtractionService? _extractor;
     private SettingsService? _settingsService;
     private FileWatcherService? _watcher;
-    private OcrService? _ocr;
     private SemanticSearchService? _semantic;
+    private AppSettings _settings = new();
 
     public ObservableCollection<ResultItemViewModel> SearchResults { get; } = new();
+    public ObservableCollection<string> IndexedFolders { get; } = new();
 
     [ObservableProperty] private string _searchQuery = "";
-    [ObservableProperty] private string _statusText = "Ready — click 'Add Folder' to start";
+    [ObservableProperty] private string _statusText = "Ready — click '+ Add Folder' or 'Add Drive' to start";
     [ObservableProperty] private string _indexedCount = "0 files";
-    [ObservableProperty] private string _ocrStatusText = "OCR";
-    [ObservableProperty] private string _themeToggleText = "Light";
     [ObservableProperty] private string _resultCountText = "";
     [ObservableProperty] private string _previewTitle = "No file selected";
-    [ObservableProperty] private string _previewText = "Select a file from the results to see its content here.";
+    [ObservableProperty] private string _previewText = "Select a file from the results to preview its content.";
     [ObservableProperty] private int _selectedResultIndex = -1;
     [ObservableProperty] private ObservableCollection<string> _tags = new();
     [ObservableProperty] private string _notes = "";
@@ -38,58 +40,63 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _selectedFileDate = "—";
     [ObservableProperty] private string _selectedFileHash = "—";
     [ObservableProperty] private string _selectedFilePath = "—";
-    [ObservableProperty] private bool _isSemanticEnabled;
     [ObservableProperty] private string _semanticToggleText = "AI";
 
-    private AppSettings _settings = new();
     private long _selectedFileId;
-
     public Window? MainWindow { get; set; }
 
     public MainViewModel()
     {
-        // All initialization is wrapped — if anything fails, the UI still shows
         try
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var dbPath = Path.Combine(appData, "DocuSearch", "docusearch.db");
-            Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+            var dbDir = Path.Combine(appData, "DocuSearch");
+            Directory.CreateDirectory(dbDir);
+            var dbPath = Path.Combine(dbDir, "docusearch.db");
 
             _db = new Database(dbPath);
             _db.Open();
-
             _settingsService = new SettingsService(_db);
             _settings = _settingsService.Load();
-
             _search = new SearchService(_db);
             _indexer = new IndexingService(_db, _settings.HashLargeFiles);
             _extractor = new ExtractionService();
-            _watcher = new FileWatcherService(_indexer!, _extractor!);
-            _ocr = new OcrService();
+            _watcher = new FileWatcherService(_indexer, _extractor);
             _semantic = new SemanticSearchService(_db);
 
-            // Wire file watcher
-            _watcher.FileAdded += OnFileAdded;
-            _watcher.FileDeleted += OnFileDeleted;
-            foreach (var folder in _settings.IndexedDrives)
-                _watcher.AddWatch(folder);
+            _watcher.FileAdded += (p) => global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                StatusText = $"New file: {Path.GetFileName(p)}";
+                UpdateIndexedCount();
+            });
 
-            _ocr.Initialize();
-            OcrStatusText = _ocr.IsAvailable ? "OCR" : "OCR N/A";
+            foreach (var f in _settings.IndexedDrives)
+            {
+                _watcher.AddWatch(f);
+                IndexedFolders.Add(f);
+            }
 
-            // Background BGE init
             Task.Run(() =>
             {
                 try
                 {
-                    var modelPath = Path.Combine(AppContext.BaseDirectory, "models", "bge-small-en-v1.5", "model.onnx");
-                    if (File.Exists(modelPath) && _semantic!.Initialize(modelPath))
+                    var exeDir = AppContext.BaseDirectory;
+                    var candidates = new[] {
+                        Path.Combine(exeDir, "models", "bge-small-en-v1.5", "model.onnx"),
+                        Path.Combine(exeDir, "bge-small-en-v1.5", "model.onnx"),
+                        Path.Combine(dbDir, "models", "bge-small-en-v1.5", "model.onnx"),
+                    };
+                    foreach (var p in candidates)
                     {
-                        global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        if (File.Exists(p) && _semantic!.Initialize(p))
                         {
-                            SemanticToggleText = "AI";
-                            StatusText = "AI model loaded — toggle AI to enable semantic search";
-                        });
+                            global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                            {
+                                SemanticToggleText = "AI";
+                                StatusText = "AI model loaded — click AI to enable semantic search";
+                            });
+                            break;
+                        }
                     }
                 }
                 catch { }
@@ -103,14 +110,7 @@ public partial class MainViewModel : ObservableObject
 
     public void Initialize()
     {
-        try
-        {
-            UpdateIndexedCount();
-            StatusText = _settings.IndexedDrives.Count > 0
-                ? $"Watching {_settings.IndexedDrives.Count} folder(s) — search or extract to begin"
-                : "Ready — click '+ Folder' to add documents";
-        }
-        catch { }
+        try { UpdateIndexedCount(); } catch { }
     }
 
     // ═══ Commands ═════════════════════════════════════════════
@@ -118,79 +118,42 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task Search()
     {
-        if (_search == null || string.IsNullOrWhiteSpace(SearchQuery))
-        {
-            SearchResults.Clear();
-            ResultCountText = "";
-            return;
-        }
-
+        if (_search == null || string.IsNullOrWhiteSpace(SearchQuery)) { SearchResults.Clear(); ResultCountText = ""; return; }
         StatusText = "Searching…";
         try
         {
             var hits = await Task.Run(() => _search.Search(SearchQuery, 50));
-
             SearchResults.Clear();
-            foreach (var hit in hits)
-                SearchResults.Add(new ResultItemViewModel(hit));
-
+            foreach (var h in hits) SearchResults.Add(new ResultItemViewModel(h));
             ResultCountText = $"{hits.Count} results";
-            StatusText = hits.Count > 0 ? $"Found {hits.Count} results" : "No results";
+            StatusText = hits.Count > 0 ? $"Found {hits.Count}" : "No results";
             UpdateIndexedCount();
         }
-        catch (Exception ex)
-        {
-            StatusText = $"Search error: {ex.Message}";
-        }
+        catch (Exception ex) { StatusText = $"Search error: {ex.Message}"; }
     }
 
     [RelayCommand]
     private async Task Extract()
     {
         if (_indexer == null || _extractor == null) return;
-
         var pending = _indexer.GetFilesNeedingExtraction();
-        if (pending.Count == 0)
-        {
-            StatusText = "All files already extracted.";
-            return;
-        }
-
+        if (pending.Count == 0) { StatusText = "All files extracted."; return; }
         var batch = pending.Take(30).ToList();
-        StatusText = $"Extracting {batch.Count} of {pending.Count} files…";
-
+        StatusText = $"Extracting {batch.Count}/{pending.Count}…";
         int done = 0, failed = 0;
-        foreach (var file in batch)
+        foreach (var f in batch)
         {
-            StatusText = $"Extracting: {file.Filename} ({done + failed + 1}/{batch.Count})";
+            StatusText = $"Extracting: {f.Filename} ({done+failed+1}/{batch.Count})";
             try
             {
-                var result = await Task.Run(() => _extractor.Extract(file.Path, file.Extension));
-                if (!string.IsNullOrEmpty(result.Text))
-                {
-                    _indexer.StoreExtractedText(file.Id, result.Text, result.Source);
-                    done++;
-                }
-                else if (result.NeedsOcr)
-                {
-                    _indexer.MarkFileNeedsOcr(file.Id);
-                    done++;
-                }
-                else
-                {
-                    _indexer.MarkFileFailed(file.Id);
-                    failed++;
-                }
+                var r = await Task.Run(() => _extractor.Extract(f.Path, f.Extension));
+                if (!string.IsNullOrEmpty(r.Text)) { _indexer.StoreExtractedText(f.Id, r.Text, r.Source); done++; }
+                else if (r.NeedsOcr) { _indexer.MarkFileNeedsOcr(f.Id); done++; }
+                else { _indexer.MarkFileFailed(f.Id); failed++; }
             }
-            catch
-            {
-                _indexer.MarkFileFailed(file.Id);
-                failed++;
-            }
+            catch { _indexer.MarkFileFailed(f.Id); failed++; }
         }
-
-        StatusText = $"Extraction: {done} done, {failed} failed" +
-                     (pending.Count > 30 ? " — click Extract again for next batch" : "");
+        StatusText = $"Extraction: {done} done, {failed} failed" + (pending.Count > 30 ? " — click Extract again" : "");
         UpdateIndexedCount();
     }
 
@@ -200,76 +163,93 @@ public partial class MainViewModel : ObservableObject
         if (_search == null) return;
         StatusText = "Finding duplicates…";
         var dups = await Task.Run(() => _search.FindDuplicates());
-
         SearchResults.Clear();
-        foreach (var hit in dups)
-            SearchResults.Add(new ResultItemViewModel(hit));
-
+        foreach (var h in dups) SearchResults.Add(new ResultItemViewModel(h));
         ResultCountText = $"{dups.Count} duplicates";
-        StatusText = $"Found {dups.Count} duplicate files";
+        StatusText = $"Found {dups.Count} duplicates";
     }
 
     [RelayCommand]
     private async Task AddFolder()
     {
         if (MainWindow == null || _indexer == null) return;
-
         try
         {
             var folders = await MainWindow.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
-                Title = "Select Folder to Index",
-                AllowMultiple = false
+                Title = "Select Folder to Index", AllowMultiple = false
             });
-
             if (folders.Count == 0) return;
-
             var folder = folders[0].Path.LocalPath;
             await ScanAndIndex(folder);
         }
-        catch (Exception ex)
+        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+    }
+
+    [RelayCommand]
+    private async Task AddDrive()
+    {
+        if (MainWindow == null || _indexer == null) return;
+        try
         {
-            StatusText = $"Add folder error: {ex.Message}";
+            // Let user type a drive letter or path
+            var dialog = new Window
+            {
+                Title = "Add Drive",
+                Width = 400, Height = 180,
+                WindowStartupLocation = global::Avalonia.Controls.WindowStartupLocation.CenterOwner,
+                Background = global::Avalonia.Media.Brushes.White
+            };
+            var input = new TextBox
+            {
+                Watermark = "e.g. D:\\ or D:\\MyFolder",
+                Margin = new global::Avalonia.Thickness(16),
+                FontSize = 14
+            };
+            var btn = new Button
+            {
+                Content = "Add",
+                HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Right,
+                Margin = new global::Avalonia.Thickness(16),
+                Classes = { "primary" }
+            };
+            var panel = new StackPanel { Children = { input, btn } };
+            dialog.Content = panel;
+
+            string? drivePath = null;
+            btn.Click += (s, e) => { drivePath = input.Text?.Trim(); dialog.Close(); };
+            await dialog.ShowDialog(MainWindow);
+
+            if (string.IsNullOrEmpty(drivePath)) return;
+            if (!Directory.Exists(drivePath)) { StatusText = $"Path not found: {drivePath}"; return; }
+
+            await ScanAndIndex(drivePath);
         }
+        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
     }
 
     private async Task ScanAndIndex(string folder)
     {
         if (_indexer == null) return;
-
         StatusText = $"Scanning {Path.GetFileName(folder)}…";
-
         if (!_settings.IndexedDrives.Contains(folder))
         {
             _settings.IndexedDrives.Add(folder);
             _settingsService?.Save(_settings);
             _watcher?.AddWatch(folder);
+            IndexedFolders.Add(folder);
         }
-
         var count = await _indexer.ScanFolderAsync(folder);
         StatusText = $"Found {count} files. Extracting…";
         await Extract();
-        UpdateIndexedCount();
-    }
-
-    [RelayCommand]
-    private void ToggleTheme()
-    {
-        // Placeholder — actual theme switch would change RequestedThemeVariant
-        StatusText = "Theme toggle (coming soon — currently light)";
     }
 
     [RelayCommand]
     private void ToggleSemantic()
     {
-        if (_semantic == null || !_semantic.IsReady)
-        {
-            StatusText = "AI model not loaded — semantic search unavailable";
-            return;
-        }
-        IsSemanticEnabled = !IsSemanticEnabled;
-        SemanticToggleText = IsSemanticEnabled ? "AI ✓" : "AI";
-        StatusText = IsSemanticEnabled ? "Semantic search enabled" : "Semantic search disabled";
+        if (_semantic == null || !_semantic.IsReady) { StatusText = "AI not loaded"; return; }
+        SemanticToggleText = SemanticToggleText == "AI" ? "AI ✓" : "AI";
+        StatusText = SemanticToggleText == "AI ✓" ? "Semantic search ON" : "Semantic search OFF";
     }
 
     [RelayCommand]
@@ -279,45 +259,52 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var dir = Path.GetDirectoryName(SelectedFilePath);
-            if (dir != null && Directory.Exists(dir))
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "explorer.exe",
-                    Arguments = dir,
-                    UseShellExecute = true
-                });
-            }
+            if (dir != null) System.Diagnostics.Process.Start("explorer.exe", dir);
         }
         catch { }
     }
 
-    // ═══ Events ═══════════════════════════════════════════════
-
-    private void OnFileAdded(string path)
+    [RelayCommand]
+    private void ShowSearch()
     {
-        global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            StatusText = $"New file: {Path.GetFileName(path)}";
-            UpdateIndexedCount();
-        });
+        StatusText = "Click the search box and type your query";
     }
 
-    private void OnFileDeleted(string path) { }
+    [RelayCommand]
+    private void ShowStats()
+    {
+        if (_search == null) return;
+        var (total, dbSize) = _search.GetStats();
+        StatusText = $"Stats: {total} files indexed, DB size {FormatSize(dbSize)}";
+    }
+
+    [RelayCommand]
+    private void ShowSettings()
+    {
+        StatusText = "Settings: use Add Folder / Add Drive to manage indexed locations";
+    }
+
+    [RelayCommand]
+    private void ShowHelp()
+    {
+        StatusText = "Help: Add folders, click Extract, then search. Click AI to enable semantic search.";
+    }
+
+    [RelayCommand]
+    private void ShowAbout()
+    {
+        StatusText = "DocuSearch.NET v2.0 — C# / .NET 8 / Avalonia UI — Offline Document Search";
+    }
 
     partial void OnSelectedResultIndexChanged(int value)
     {
         if (_search == null) return;
         if (value < 0 || value >= SearchResults.Count)
         {
-            PreviewTitle = "No file selected";
-            PreviewText = "Select a file from the results to see its content here.";
-            return;
+            PreviewTitle = "No file selected"; PreviewText = "Select a file from results."; return;
         }
-
         var item = SearchResults[value];
         _selectedFileId = item.Hit.FileId;
-
         var file = _search.GetFileById(_selectedFileId);
         if (file != null)
         {
@@ -326,19 +313,15 @@ public partial class MainViewModel : ObservableObject
             SelectedFileHash = file.Hash.Length > 32 ? file.Hash[..32] + "…" : (file.Hash.Length > 0 ? file.Hash : "—");
             SelectedFilePath = file.Path;
             PreviewTitle = file.Filename;
-            PreviewText = _search.GetExtractedText(file.Id);
-
+            PreviewText = _search.GetExtractedText(file.Id) is { Length: > 0 } t ? t : "(no text extracted)";
             Tags.Clear();
             if (_indexer != null)
             {
-                foreach (var tag in _indexer.GetTags(file.Id))
-                    Tags.Add(tag);
+                foreach (var tag in _indexer.GetTags(file.Id)) Tags.Add(tag);
                 Notes = _indexer.GetNote(file.Id);
             }
         }
     }
-
-    // ═══ Helpers ══════════════════════════════════════════════
 
     private void UpdateIndexedCount()
     {
@@ -347,55 +330,25 @@ public partial class MainViewModel : ObservableObject
         IndexedCount = $"{total} files";
     }
 
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1048576) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1073741824) return $"{bytes / 1048576.0:F1} MB";
-        return $"{bytes / 1073741824.0:F1} GB";
-    }
+    private static string FormatSize(long b) => b < 1024 ? $"{b} B" : b < 1048576 ? $"{b/1024.0:F1} KB" : b < 1073741824 ? $"{b/1048576.0:F1} MB" : $"{b/1073741824.0:F1} GB";
 }
 
 public class ResultItemViewModel
 {
     public SearchHit Hit { get; }
     public string Filename => Hit.Filename;
-    public string Snippet => string.IsNullOrEmpty(Hit.Snippet) ? "" :
-        (Hit.Snippet.Length > 100 ? Hit.Snippet[..100] + "…" : Hit.Snippet);
-    public string BadgeLabel => GetBadgeLabel(Hit.Extension);
-    public string BadgeColor => GetBadgeColor(Hit.Extension);
-    public string MetaLine => $"{FormatSize(Hit.Size)} · {Hit.ModifiedDate:dd MMM yyyy}";
-    public bool HasScore => Hit.Score > 0;
-    public string ScoreText => Hit.Score.ToString("F2");
-
+    public string Snippet => string.IsNullOrEmpty(Hit.Snippet) ? "" : (Hit.Snippet.Length > 80 ? Hit.Snippet[..80] + "…" : Hit.Snippet);
+    public string BadgeLabel => Hit.Extension.ToLowerInvariant() switch
+    {
+        "pdf" => "PDF", "doc" or "docx" => "DOC", "xls" or "xlsx" => "XLS", "ppt" or "pptx" => "PPT",
+        _ => Hit.Extension.Length >= 3 ? Hit.Extension[..3].ToUpper() : "?"
+    };
+    public string BadgeColor => Hit.Extension.ToLowerInvariant() switch
+    {
+        "pdf" => "#EF4444", "doc" or "docx" => "#2563EB", "xls" or "xlsx" => "#16A34A",
+        "ppt" or "pptx" => "#EA580C", _ => "#9B9B9B"
+    };
+    public string MetaLine => $"{FormatSize(Hit.Size)} · {Hit.ModifiedDate:dd MMM yy}";
     public ResultItemViewModel(SearchHit hit) { Hit = hit; }
-
-    private static string GetBadgeLabel(string ext) => ext.ToLowerInvariant() switch
-    {
-        "pdf" => "PDF",
-        "doc" or "docx" => "DOC",
-        "xls" or "xlsx" or "xlsm" => "XLS",
-        "ppt" or "pptx" => "PPT",
-        _ when ext.Length <= 3 => ext.ToUpper(),
-        _ => ext.Length >= 3 ? ext[..3].ToUpper() : "?"
-    };
-
-    private static string GetBadgeColor(string ext) => ext.ToLowerInvariant() switch
-    {
-        "pdf" => "#EF4444",
-        "doc" or "docx" => "#2563EB",
-        "xls" or "xlsx" or "xlsm" => "#16A34A",
-        "ppt" or "pptx" => "#EA580C",
-        "txt" or "csv" or "md" => "#6B7280",
-        "jpg" or "jpeg" or "png" or "tiff" or "bmp" or "gif" => "#A855F7",
-        _ => "#9B9B9B"
-    };
-
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1048576) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1073741824) return $"{bytes / 1048576.0:F1} MB";
-        return $"{bytes / 1073741824.0:F1} GB";
-    }
+    private static string FormatSize(long b) => b < 1024 ? $"{b} B" : b < 1048576 ? $"{b/1024.0:F1} KB" : b < 1073741824 ? $"{b/1048576.0:F1} MB" : $"{b/1073741824.0:F1} GB";
 }
