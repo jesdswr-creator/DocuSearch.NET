@@ -76,6 +76,7 @@ public partial class MainViewModel : ObservableObject
                 IndexedFolders.Add(f);
             }
 
+            // Background BGE init
             Task.Run(() =>
             {
                 try
@@ -93,7 +94,7 @@ public partial class MainViewModel : ObservableObject
                             global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                             {
                                 SemanticToggleText = "AI";
-                                StatusText = "AI model loaded — click AI to enable semantic search";
+                                StatusText = "AI model loaded — click AI to enable";
                             });
                             break;
                         }
@@ -113,12 +114,17 @@ public partial class MainViewModel : ObservableObject
         try { UpdateIndexedCount(); } catch { }
     }
 
-    // ═══ Commands ═════════════════════════════════════════════
+    // ═══ Search ═══════════════════════════════════════════════
 
     [RelayCommand]
     private async Task Search()
     {
-        if (_search == null || string.IsNullOrWhiteSpace(SearchQuery)) { SearchResults.Clear(); ResultCountText = ""; return; }
+        if (_search == null || string.IsNullOrWhiteSpace(SearchQuery))
+        {
+            SearchResults.Clear();
+            ResultCountText = "";
+            return;
+        }
         StatusText = "Searching…";
         try
         {
@@ -132,6 +138,8 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex) { StatusText = $"Search error: {ex.Message}"; }
     }
 
+    // ═══ Extract ══════════════════════════════════════════════
+
     [RelayCommand]
     private async Task Extract()
     {
@@ -143,7 +151,7 @@ public partial class MainViewModel : ObservableObject
         int done = 0, failed = 0;
         foreach (var f in batch)
         {
-            StatusText = $"Extracting: {f.Filename} ({done+failed+1}/{batch.Count})";
+            StatusText = $"Extracting: {f.Filename} ({done + failed + 1}/{batch.Count})";
             try
             {
                 var r = await Task.Run(() => _extractor.Extract(f.Path, f.Extension));
@@ -157,6 +165,8 @@ public partial class MainViewModel : ObservableObject
         UpdateIndexedCount();
     }
 
+    // ═══ Duplicates ═══════════════════════════════════════════
+
     [RelayCommand]
     private async Task FindDuplicates()
     {
@@ -169,6 +179,8 @@ public partial class MainViewModel : ObservableObject
         StatusText = $"Found {dups.Count} duplicates";
     }
 
+    // ═══ Add Folder (folder picker) ══════════════════════════
+
     [RelayCommand]
     private async Task AddFolder()
     {
@@ -177,7 +189,8 @@ public partial class MainViewModel : ObservableObject
         {
             var folders = await MainWindow.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
-                Title = "Select Folder to Index", AllowMultiple = false
+                Title = "Select Folder to Index",
+                AllowMultiple = false
             });
             if (folders.Count == 0) return;
             var folder = folders[0].Path.LocalPath;
@@ -186,52 +199,76 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
     }
 
+    // ═══ Add Drive (text input dialog) ═══════════════════════
+
     [RelayCommand]
     private async Task AddDrive()
     {
         if (MainWindow == null || _indexer == null) return;
         try
         {
-            // Let user type a drive letter or path
-            var dialog = new Window
-            {
-                Title = "Add Drive",
-                Width = 400, Height = 180,
-                WindowStartupLocation = global::Avalonia.Controls.WindowStartupLocation.CenterOwner,
-                Background = global::Avalonia.Media.Brushes.White
-            };
-            var input = new TextBox
+            // Build a simple input dialog
+            var inputBox = new TextBox
             {
                 Watermark = "e.g. D:\\ or D:\\MyFolder",
                 Margin = new global::Avalonia.Thickness(16),
-                FontSize = 14
+                FontSize = 14,
+                Width = 340
             };
-            var btn = new Button
+            var okBtn = new Button
             {
-                Content = "Add",
-                HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Right,
-                Margin = new global::Avalonia.Thickness(16),
-                Classes = { "primary" }
+                Content = "Add Drive",
+                Classes = { "primary" },
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new global::Avalonia.Thickness(16, 0, 16, 16)
             };
-            var panel = new StackPanel { Children = { input, btn } };
-            dialog.Content = panel;
+            var label = new TextBlock
+            {
+                Text = "Enter a drive or folder path to index:",
+                Margin = new global::Avalonia.Thickness(16, 16, 16, 4),
+                FontSize = 13,
+                Foreground = global::Avalonia.Media.Brushes.Black
+            };
+            var panel = new StackPanel();
+            panel.Children.Add(label);
+            panel.Children.Add(inputBox);
+            panel.Children.Add(okBtn);
+
+            var dialog = new Window
+            {
+                Title = "Add Drive or Folder",
+                Width = 420,
+                Height = 200,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Background = global::Avalonia.Media.Brushes.White,
+                Content = panel
+            };
 
             string? drivePath = null;
-            btn.Click += (s, e) => { drivePath = input.Text?.Trim(); dialog.Close(); };
+            okBtn.Click += (s, e) =>
+            {
+                drivePath = inputBox.Text?.Trim();
+                dialog.Close();
+            };
+
             await dialog.ShowDialog(MainWindow);
 
             if (string.IsNullOrEmpty(drivePath)) return;
-            if (!Directory.Exists(drivePath)) { StatusText = $"Path not found: {drivePath}"; return; }
+            if (!Directory.Exists(drivePath))
+            {
+                StatusText = $"Path not found: {drivePath}";
+                return;
+            }
 
             await ScanAndIndex(drivePath);
         }
-        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+        catch (Exception ex) { StatusText = $"Add drive error: {ex.Message}"; }
     }
 
     private async Task ScanAndIndex(string folder)
     {
         if (_indexer == null) return;
-        StatusText = $"Scanning {Path.GetFileName(folder)}…";
+        StatusText = $"Scanning {Path.GetFileName(folder.TrimEnd('\\', '/'))}…";
         if (!_settings.IndexedDrives.Contains(folder))
         {
             _settings.IndexedDrives.Add(folder);
@@ -244,13 +281,17 @@ public partial class MainViewModel : ObservableObject
         await Extract();
     }
 
+    // ═══ AI Toggle ═══════════════════════════════════════════
+
     [RelayCommand]
     private void ToggleSemantic()
     {
-        if (_semantic == null || !_semantic.IsReady) { StatusText = "AI not loaded"; return; }
+        if (_semantic == null || !_semantic.IsReady) { StatusText = "AI model not loaded"; return; }
         SemanticToggleText = SemanticToggleText == "AI" ? "AI ✓" : "AI";
         StatusText = SemanticToggleText == "AI ✓" ? "Semantic search ON" : "Semantic search OFF";
     }
+
+    // ═══ Open Location ═══════════════════════════════════════
 
     [RelayCommand]
     private void OpenLocation()
@@ -264,10 +305,12 @@ public partial class MainViewModel : ObservableObject
         catch { }
     }
 
+    // ═══ Menu commands ═══════════════════════════════════════
+
     [RelayCommand]
     private void ShowSearch()
     {
-        StatusText = "Click the search box and type your query";
+        StatusText = "Type your search query and press Enter or click Search";
     }
 
     [RelayCommand]
@@ -275,19 +318,20 @@ public partial class MainViewModel : ObservableObject
     {
         if (_search == null) return;
         var (total, dbSize) = _search.GetStats();
-        StatusText = $"Stats: {total} files indexed, DB size {FormatSize(dbSize)}";
+        StatusText = $"Stats: {total} files indexed, DB: {FormatSize(dbSize)}, Folders: {_settings.IndexedDrives.Count}";
     }
 
     [RelayCommand]
     private void ShowSettings()
     {
-        StatusText = "Settings: use Add Folder / Add Drive to manage indexed locations";
+        var folders = string.Join(", ", _settings.IndexedDrives);
+        StatusText = $"Indexed locations: {(_settings.IndexedDrives.Count > 0 ? folders : "none — use Add Folder or Add Drive")}";
     }
 
     [RelayCommand]
     private void ShowHelp()
     {
-        StatusText = "Help: Add folders, click Extract, then search. Click AI to enable semantic search.";
+        StatusText = "Help: 1) Add Folder/Drive  2) Click Extract  3) Search  4) Click AI for semantic search";
     }
 
     [RelayCommand]
@@ -296,12 +340,16 @@ public partial class MainViewModel : ObservableObject
         StatusText = "DocuSearch.NET v2.0 — C# / .NET 8 / Avalonia UI — Offline Document Search";
     }
 
+    // ═══ Selection changed ═══════════════════════════════════
+
     partial void OnSelectedResultIndexChanged(int value)
     {
         if (_search == null) return;
         if (value < 0 || value >= SearchResults.Count)
         {
-            PreviewTitle = "No file selected"; PreviewText = "Select a file from results."; return;
+            PreviewTitle = "No file selected";
+            PreviewText = "Select a file from results.";
+            return;
         }
         var item = SearchResults[value];
         _selectedFileId = item.Hit.FileId;
@@ -313,7 +361,8 @@ public partial class MainViewModel : ObservableObject
             SelectedFileHash = file.Hash.Length > 32 ? file.Hash[..32] + "…" : (file.Hash.Length > 0 ? file.Hash : "—");
             SelectedFilePath = file.Path;
             PreviewTitle = file.Filename;
-            PreviewText = _search.GetExtractedText(file.Id) is { Length: > 0 } t ? t : "(no text extracted)";
+            var text = _search.GetExtractedText(file.Id);
+            PreviewText = !string.IsNullOrEmpty(text) ? text : "(no text extracted — click Extract)";
             Tags.Clear();
             if (_indexer != null)
             {
@@ -330,17 +379,23 @@ public partial class MainViewModel : ObservableObject
         IndexedCount = $"{total} files";
     }
 
-    private static string FormatSize(long b) => b < 1024 ? $"{b} B" : b < 1048576 ? $"{b/1024.0:F1} KB" : b < 1073741824 ? $"{b/1048576.0:F1} MB" : $"{b/1073741824.0:F1} GB";
+    private static string FormatSize(long b) =>
+        b < 1024 ? $"{b} B" :
+        b < 1048576 ? $"{b / 1024.0:F1} KB" :
+        b < 1073741824 ? $"{b / 1048576.0:F1} MB" :
+        $"{b / 1073741824.0:F1} GB";
 }
 
 public class ResultItemViewModel
 {
     public SearchHit Hit { get; }
     public string Filename => Hit.Filename;
-    public string Snippet => string.IsNullOrEmpty(Hit.Snippet) ? "" : (Hit.Snippet.Length > 80 ? Hit.Snippet[..80] + "…" : Hit.Snippet);
+    public string Snippet => string.IsNullOrEmpty(Hit.Snippet) ? "" :
+        (Hit.Snippet.Length > 80 ? Hit.Snippet[..80] + "…" : Hit.Snippet);
     public string BadgeLabel => Hit.Extension.ToLowerInvariant() switch
     {
-        "pdf" => "PDF", "doc" or "docx" => "DOC", "xls" or "xlsx" => "XLS", "ppt" or "pptx" => "PPT",
+        "pdf" => "PDF", "doc" or "docx" => "DOC", "xls" or "xlsx" => "XLS",
+        "ppt" or "pptx" => "PPT",
         _ => Hit.Extension.Length >= 3 ? Hit.Extension[..3].ToUpper() : "?"
     };
     public string BadgeColor => Hit.Extension.ToLowerInvariant() switch
@@ -350,5 +405,9 @@ public class ResultItemViewModel
     };
     public string MetaLine => $"{FormatSize(Hit.Size)} · {Hit.ModifiedDate:dd MMM yy}";
     public ResultItemViewModel(SearchHit hit) { Hit = hit; }
-    private static string FormatSize(long b) => b < 1024 ? $"{b} B" : b < 1048576 ? $"{b/1024.0:F1} KB" : b < 1073741824 ? $"{b/1048576.0:F1} MB" : $"{b/1073741824.0:F1} GB";
+    private static string FormatSize(long b) =>
+        b < 1024 ? $"{b} B" :
+        b < 1048576 ? $"{b / 1024.0:F1} KB" :
+        b < 1073741824 ? $"{b / 1048576.0:F1} MB" :
+        $"{b / 1073741824.0:F1} GB";
 }
