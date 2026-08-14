@@ -5,10 +5,29 @@ namespace DocuSearch.Avalonia;
 
 class Program
 {
-    // STAThread needed for Windows COM interop (clipboard, file dialogs)
     [STAThread]
-    static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    static void Main(string[] args)
+    {
+        try
+        {
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception ex)
+        {
+            // Write to a crash file so the user can see what happened
+            var crashPath = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "DocuSearch", "crash.txt");
+            try
+            {
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(crashPath)!);
+                System.IO.File.WriteAllText(crashPath,
+                    $"{DateTime.Now}\n\n{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}");
+            }
+            catch { }
+            throw; // Re-throw so Windows shows the crash dialog
+        }
+    }
 
     static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()

@@ -2,194 +2,70 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="DocuSearch.Avalonia.App"
              RequestedThemeVariant="Light">
-
-    <Application.Resources>
-        <!-- ── Clean, light, modern palette ── -->
-        <!-- One accent color (warm amber, not aggressive) -->
-        <Color x:Key="AccentColor">#E8842C</Color>
-        <Color x:Key="AccentHover">#D97420</Color>
-        <Color x:Key="AccentSoft">#FFF4E8</Color>
-
-        <!-- Surfaces (pure white + very subtle grays) -->
-        <Color x:Key="SurfaceColor">#FFFFFF</Color>
-        <Color x:Key="SurfaceAltColor">#FAFAFA</Color>
-        <Color x:Key="SurfaceHoverColor">#F5F5F5</Color>
-        <Color x:Key="BorderColor">#E5E5E5</Color>
-        <Color x:Key="BorderAltColor">#EFEFEF</Color>
-
-        <!-- Text (charcoal, not pure black) -->
-        <Color x:Key="TextColor">#1A1A1A</Color>
-        <Color x:Key="TextSecondaryColor">#6B6B6B</Color>
-        <Color x:Key="TextTertiaryColor">#9B9B9B</Color>
-    </Application.Resources>
-
     <Application.Styles>
         <FluentTheme />
-
-        <!-- ════════════════════════════════════════════════════════ -->
-        <!--  GLOBAL OVERRIDES — clean, flat, modern                     -->
-        <!-- ════════════════════════════════════════════════════════ -->
-
         <Style Selector="Window">
-            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Background" Value="#F8F9FA"/>
             <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
         </Style>
-
-        <!-- ═══ Search box ═══ -->
         <Style Selector="TextBox.searchBox">
-            <Setter Property="Background" Value="#FAFAFA"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="Foreground" Value="#1A1A1A"/>
-            <Setter Property="BorderBrush" Value="#E5E5E5"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12,8"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="CaretBrush" Value="#E8842C"/>
         </Style>
         <Style Selector="TextBox.searchBox:focus">
             <Setter Property="BorderBrush" Value="#E8842C"/>
-            <Setter Property="Background" Value="#FFFFFF"/>
         </Style>
-
-        <!-- ═══ Primary button (accent fill) ═══ -->
         <Style Selector="Button.primary">
             <Setter Property="Background" Value="#E8842C"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Padding" Value="16,9"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,8"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontSize" Value="13"/>
         </Style>
         <Style Selector="Button.primary:pointerover">
             <Setter Property="Background" Value="#D97420"/>
         </Style>
-        <Style Selector="Button.primary:pressed">
-            <Setter Property="Background" Value="#C06818"/>
-        </Style>
-
-        <!-- ═══ Ghost button (transparent, border on hover) ═══ -->
         <Style Selector="Button.ghost">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#6B6B6B"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Foreground" Value="#555555"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12,8"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontSize" Value="13"/>
         </Style>
         <Style Selector="Button.ghost:pointerover">
-            <Setter Property="Background" Value="#F5F5F5"/>
+            <Setter Property="Background" Value="#F0F0F0"/>
             <Setter Property="Foreground" Value="#1A1A1A"/>
         </Style>
-
-        <!-- ═══ Status pill button ═══ -->
         <Style Selector="Button.pill">
-            <Setter Property="Background" Value="#F5F5F5"/>
-            <Setter Property="Foreground" Value="#6B6B6B"/>
-            <Setter Property="CornerRadius" Value="20"/>
-            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="Background" Value="#F0F0F0"/>
+            <Setter Property="Foreground" Value="#666666"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="10,4"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="11"/>
         </Style>
         <Style Selector="Button.pill:pointerover">
-            <Setter Property="Background" Value="#EFEFEF"/>
+            <Setter Property="Background" Value="#E8E8E8"/>
         </Style>
-
-        <!-- ═══ Result card ═══ -->
-        <Style Selector="ListBoxItem">
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0,1"/>
-            <Setter Property="CornerRadius" Value="10"/>
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
         <Style Selector="ListBoxItem:pointerover">
-            <Setter Property="Background" Value="#FAFAFA"/>
+            <Setter Property="Background" Value="#F5F5F5"/>
         </Style>
         <Style Selector="ListBoxItem:selected">
             <Setter Property="Background" Value="#FFF4E8"/>
-        </Style>
-        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-            <Setter Property="Background" Value="#FFF4E8"/>
-        </Style>
-
-        <!-- ═══ Scrollbar — thin, minimal ═══ -->
-        <Style Selector="ScrollBar:vertical">
-            <Setter Property="Width" Value="6"/>
-            <Setter Property="Margin" Value="0,0,2,0"/>
-        </Style>
-        <Style Selector="ScrollBar:horizontal">
-            <Setter Property="Height" Value="6"/>
-        </Style>
-
-        <!-- ═══ Text styles ═══ -->
-        <Style Selector="TextBlock.h1">
-            <Setter Property="Foreground" Value="#1A1A1A"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="15"/>
-        </Style>
-        <Style Selector="TextBlock.h2">
-            <Setter Property="Foreground" Value="#1A1A1A"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="13"/>
-        </Style>
-        <Style Selector="TextBlock.body">
-            <Setter Property="Foreground" Value="#1A1A1A"/>
-            <Setter Property="FontSize" Value="13"/>
-        </Style>
-        <Style Selector="TextBlock.secondary">
-            <Setter Property="Foreground" Value="#6B6B6B"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style Selector="TextBlock.tertiary">
-            <Setter Property="Foreground" Value="#9B9B9B"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontFamily" Value="Cascadia Code, Consolas, monospace"/>
-        </Style>
-        <Style Selector="TextBlock.accent">
-            <Setter Property="Foreground" Value="#E8842C"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontFamily" Value="Cascadia Code, Consolas, monospace"/>
-        </Style>
-        <Style Selector="TextBlock.sectionLabel">
-            <Setter Property="Foreground" Value="#9B9B9B"/>
-            <Setter Property="FontSize" Value="10"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="LetterSpacing" Value="0.8"/>
-        </Style>
-
-        <!-- ═══ Preview text area ═══ -->
-        <Style Selector="TextBox.previewText">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="Foreground" Value="#3A3A3A"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="16,12"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="LineHeight" Value="20"/>
-        </Style>
-
-        <!-- ═══ Notes input ═══ -->
-        <Style Selector="TextBox.noteInput">
-            <Setter Property="Background" Value="#FAFAFA"/>
-            <Setter Property="Foreground" Value="#1A1A1A"/>
-            <Setter Property="BorderBrush" Value="#E5E5E5"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
-        <!-- ═══ Tag chip ═══ -->
-        <Style Selector="Border.tagChip">
-            <Setter Property="Background" Value="#F5F5F5"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="8,3"/>
-        </Style>
-
-        <!-- ═══ Divider ═══ -->
-        <Style Selector="Separator">
-            <Setter Property="Background" Value="#EFEFEF"/>
-            <Setter Property="Margin" Value="0,4"/>
         </Style>
     </Application.Styles>
 </Application>

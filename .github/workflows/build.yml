@@ -32,16 +32,14 @@ jobs:
       - name: Build
         run: dotnet build DocuSearch.NET.sln --configuration ${{ env.CONFIGURATION }} --no-restore
 
-      - name: Publish self-contained
+      - name: Publish self-contained (single exe + all DLLs)
         run: |
           dotnet publish src/DocuSearch.Avalonia/DocuSearch.Avalonia.csproj `
             --configuration ${{ env.CONFIGURATION }} `
             --runtime win-x64 `
             --self-contained true `
             --output build/publish `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:EnableCompressionInSingleFile=true
+            -p:PublishSingleFile=false
         shell: pwsh
 
       - name: Download BGE model
