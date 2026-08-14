@@ -1,10 +1,11 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using global::Avalonia.Controls;
-using global::Avalonia.Platform.Storage;
-using global::Avalonia.Media;
-using global::Avalonia.Layout;
-using global::Avalonia.Threading;
+using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Layout;
+using Avalonia;
+using Avalonia.Threading;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DocuSearch.Core.Data;
@@ -28,11 +29,11 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<string> IndexedFolders { get; } = new();
 
     [ObservableProperty] private string _searchQuery = "";
-    [ObservableProperty] private string _statusText = "Ready — click '+ Add Folder' or 'Add Drive' to start";
+    [ObservableProperty] private string _statusText = "Ready";
     [ObservableProperty] private string _indexedCount = "0 files";
     [ObservableProperty] private string _resultCountText = "";
     [ObservableProperty] private string _previewTitle = "No file selected";
-    [ObservableProperty] private string _previewText = "Select a file from the results to preview its content.";
+    [ObservableProperty] private string _previewText = "Select a file from results to preview.";
     [ObservableProperty] private int _selectedResultIndex = -1;
     [ObservableProperty] private ObservableCollection<string> _tags = new();
     [ObservableProperty] private string _notes = "";
@@ -47,66 +48,67 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        try { InitServices(); }
+        catch (Exception ex) { StatusText = $"Init error: {ex.Message}"; }
+    }
+
+    private void InitServices()
+    {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var dbDir = Path.Combine(appData, "DocuSearch");
+        Directory.CreateDirectory(dbDir);
+        var dbPath = Path.Combine(dbDir, "docusearch.db");
+
+        _db = new Database(dbPath);
+        _db.Open();
+        _settingsService = new SettingsService(_db);
+        _settings = _settingsService.Load();
+        _search = new SearchService(_db);
+        _indexer = new IndexingService(_db, _settings.HashLargeFiles);
+        _extractor = new ExtractionService();
+        _watcher = new FileWatcherService(_indexer, _extractor);
+        _semantic = new SemanticSearchService(_db);
+
+        _watcher.FileAdded += (p) => Dispatcher.UIThread.Post(() =>
+        {
+            StatusText = $"New file: {Path.GetFileName(p)}";
+            UpdateIndexedCount();
+        });
+
+        foreach (var f in _settings.IndexedDrives)
+        {
+            _watcher.AddWatch(f);
+            IndexedFolders.Add(f);
+        }
+
+        Task.Run(() => TryLoadBgeModel(dbDir));
+    }
+
+    private void TryLoadBgeModel(string dbDir)
+    {
         try
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var dbDir = Path.Combine(appData, "DocuSearch");
-            Directory.CreateDirectory(dbDir);
-            var dbPath = Path.Combine(dbDir, "docusearch.db");
-
-            _db = new Database(dbPath);
-            _db.Open();
-            _settingsService = new SettingsService(_db);
-            _settings = _settingsService.Load();
-            _search = new SearchService(_db);
-            _indexer = new IndexingService(_db, _settings.HashLargeFiles);
-            _extractor = new ExtractionService();
-            _watcher = new FileWatcherService(_indexer, _extractor);
-            _semantic = new SemanticSearchService(_db);
-
-            _watcher.FileAdded += (p) => global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            var exeDir = AppContext.BaseDirectory;
+            var candidates = new[]
             {
-                StatusText = $"New file: {Path.GetFileName(p)}";
-                UpdateIndexedCount();
-            });
-
-            foreach (var f in _settings.IndexedDrives)
+                Path.Combine(exeDir, "models", "bge-small-en-v1.5", "model.onnx"),
+                Path.Combine(exeDir, "bge-small-en-v1.5", "model.onnx"),
+                Path.Combine(dbDir, "models", "bge-small-en-v1.5", "model.onnx"),
+            };
+            foreach (var p in candidates)
             {
-                _watcher.AddWatch(f);
-                IndexedFolders.Add(f);
-            }
-
-            // Background BGE init
-            Task.Run(() =>
-            {
-                try
+                if (File.Exists(p) && _semantic!.Initialize(p))
                 {
-                    var exeDir = AppContext.BaseDirectory;
-                    var candidates = new[] {
-                        Path.Combine(exeDir, "models", "bge-small-en-v1.5", "model.onnx"),
-                        Path.Combine(exeDir, "bge-small-en-v1.5", "model.onnx"),
-                        Path.Combine(dbDir, "models", "bge-small-en-v1.5", "model.onnx"),
-                    };
-                    foreach (var p in candidates)
+                    Dispatcher.UIThread.Post(() =>
                     {
-                        if (File.Exists(p) && _semantic!.Initialize(p))
-                        {
-                            global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                            {
-                                SemanticToggleText = "AI";
-                                StatusText = "AI model loaded — click AI to enable";
-                            });
-                            break;
-                        }
-                    }
+                        SemanticToggleText = "AI";
+                        StatusText = "AI model loaded — click AI to enable";
+                    });
+                    break;
                 }
-                catch { }
-            });
+            }
         }
-        catch (Exception ex)
-        {
-            StatusText = $"Init error: {ex.Message}";
-        }
+        catch { }
     }
 
     public void Initialize()
@@ -114,7 +116,7 @@ public partial class MainViewModel : ObservableObject
         try { UpdateIndexedCount(); } catch { }
     }
 
-    // ═══ Search ═══════════════════════════════════════════════
+    // ── Commands ──────────────────────────────────────────────
 
     [RelayCommand]
     private async Task Search()
@@ -137,8 +139,6 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex) { StatusText = $"Search error: {ex.Message}"; }
     }
-
-    // ═══ Extract ══════════════════════════════════════════════
 
     [RelayCommand]
     private async Task Extract()
@@ -165,8 +165,6 @@ public partial class MainViewModel : ObservableObject
         UpdateIndexedCount();
     }
 
-    // ═══ Duplicates ═══════════════════════════════════════════
-
     [RelayCommand]
     private async Task FindDuplicates()
     {
@@ -179,27 +177,19 @@ public partial class MainViewModel : ObservableObject
         StatusText = $"Found {dups.Count} duplicates";
     }
 
-    // ═══ Add Folder (folder picker) ══════════════════════════
-
     [RelayCommand]
     private async Task AddFolder()
     {
         if (MainWindow == null || _indexer == null) return;
         try
         {
-            var folders = await MainWindow.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-            {
-                Title = "Select Folder to Index",
-                AllowMultiple = false
-            });
+            var folders = await MainWindow.StorageProvider.OpenFolderPickerAsync(
+                new FolderPickerOpenOptions { Title = "Select Folder", AllowMultiple = false });
             if (folders.Count == 0) return;
-            var folder = folders[0].Path.LocalPath;
-            await ScanAndIndex(folder);
+            await ScanAndIndex(folders[0].Path.LocalPath);
         }
         catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
     }
-
-    // ═══ Add Drive (text input dialog) ═══════════════════════
 
     [RelayCommand]
     private async Task AddDrive()
@@ -207,27 +197,25 @@ public partial class MainViewModel : ObservableObject
         if (MainWindow == null || _indexer == null) return;
         try
         {
-            // Build a simple input dialog
             var inputBox = new TextBox
             {
                 Watermark = "e.g. D:\\ or D:\\MyFolder",
-                Margin = new global::Avalonia.Thickness(16),
+                Margin = new Thickness(16),
                 FontSize = 14,
                 Width = 340
             };
             var okBtn = new Button
             {
-                Content = "Add Drive",
+                Content = "Add",
                 Classes = { "primary" },
                 HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new global::Avalonia.Thickness(16, 0, 16, 16)
+                Margin = new Thickness(16, 0, 16, 16)
             };
             var label = new TextBlock
             {
                 Text = "Enter a drive or folder path to index:",
-                Margin = new global::Avalonia.Thickness(16, 16, 16, 4),
-                FontSize = 13,
-                Foreground = global::Avalonia.Media.Brushes.Black
+                Margin = new Thickness(16, 16, 16, 4),
+                FontSize = 13
             };
             var panel = new StackPanel();
             panel.Children.Add(label);
@@ -237,30 +225,19 @@ public partial class MainViewModel : ObservableObject
             var dialog = new Window
             {
                 Title = "Add Drive or Folder",
-                Width = 420,
-                Height = 200,
+                Width = 420, Height = 200,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Background = global::Avalonia.Media.Brushes.White,
+                Background = Brushes.White,
                 Content = panel
             };
 
-            string? drivePath = null;
-            okBtn.Click += (s, e) =>
-            {
-                drivePath = inputBox.Text?.Trim();
-                dialog.Close();
-            };
-
+            string? path = null;
+            okBtn.Click += (s, e) => { path = inputBox.Text?.Trim(); dialog.Close(); };
             await dialog.ShowDialog(MainWindow);
 
-            if (string.IsNullOrEmpty(drivePath)) return;
-            if (!Directory.Exists(drivePath))
-            {
-                StatusText = $"Path not found: {drivePath}";
-                return;
-            }
-
-            await ScanAndIndex(drivePath);
+            if (string.IsNullOrEmpty(path)) return;
+            if (!Directory.Exists(path)) { StatusText = $"Not found: {path}"; return; }
+            await ScanAndIndex(path);
         }
         catch (Exception ex) { StatusText = $"Add drive error: {ex.Message}"; }
     }
@@ -281,66 +258,54 @@ public partial class MainViewModel : ObservableObject
         await Extract();
     }
 
-    // ═══ AI Toggle ═══════════════════════════════════════════
-
     [RelayCommand]
     private void ToggleSemantic()
     {
-        if (_semantic == null || !_semantic.IsReady) { StatusText = "AI model not loaded"; return; }
+        if (_semantic == null || !_semantic.IsReady) { StatusText = "AI not loaded"; return; }
         SemanticToggleText = SemanticToggleText == "AI" ? "AI ✓" : "AI";
         StatusText = SemanticToggleText == "AI ✓" ? "Semantic search ON" : "Semantic search OFF";
     }
-
-    // ═══ Open Location ═══════════════════════════════════════
 
     [RelayCommand]
     private void OpenLocation()
     {
         if (SelectedFilePath == "—" || !File.Exists(SelectedFilePath)) return;
-        try
-        {
-            var dir = Path.GetDirectoryName(SelectedFilePath);
-            if (dir != null) System.Diagnostics.Process.Start("explorer.exe", dir);
-        }
+        try { System.Diagnostics.Process.Start("explorer.exe", Path.GetDirectoryName(SelectedFilePath)!); }
         catch { }
     }
 
-    // ═══ Menu commands ═══════════════════════════════════════
-
     [RelayCommand]
-    private void ShowSearch()
-    {
-        StatusText = "Type your search query and press Enter or click Search";
-    }
+    private void ShowSearch() { StatusText = "Type your query and press Enter"; }
 
     [RelayCommand]
     private void ShowStats()
     {
         if (_search == null) return;
         var (total, dbSize) = _search.GetStats();
-        StatusText = $"Stats: {total} files indexed, DB: {FormatSize(dbSize)}, Folders: {_settings.IndexedDrives.Count}";
+        StatusText = $"Stats: {total} files, DB: {FormatSize(dbSize)}, Folders: {_settings.IndexedDrives.Count}";
     }
 
     [RelayCommand]
     private void ShowSettings()
     {
-        var folders = string.Join(", ", _settings.IndexedDrives);
-        StatusText = $"Indexed locations: {(_settings.IndexedDrives.Count > 0 ? folders : "none — use Add Folder or Add Drive")}";
+        StatusText = _settings.IndexedDrives.Count > 0
+            ? $"Indexed: {string.Join(", ", _settings.IndexedDrives)}"
+            : "No folders indexed — use Add Folder or Add Drive";
     }
 
     [RelayCommand]
     private void ShowHelp()
     {
-        StatusText = "Help: 1) Add Folder/Drive  2) Click Extract  3) Search  4) Click AI for semantic search";
+        StatusText = "1) Add Folder/Drive  2) Extract  3) Search  4) Click AI for semantic";
     }
 
     [RelayCommand]
     private void ShowAbout()
     {
-        StatusText = "DocuSearch.NET v2.0 — C# / .NET 8 / Avalonia UI — Offline Document Search";
+        StatusText = "DocuSearch.NET v2.0 — C# / .NET 8 / Avalonia UI";
     }
 
-    // ═══ Selection changed ═══════════════════════════════════
+    // ── Selection ─────────────────────────────────────────────
 
     partial void OnSelectedResultIndexChanged(int value)
     {
@@ -354,21 +319,21 @@ public partial class MainViewModel : ObservableObject
         var item = SearchResults[value];
         _selectedFileId = item.Hit.FileId;
         var file = _search.GetFileById(_selectedFileId);
-        if (file != null)
+        if (file == null) return;
+
+        SelectedFileSize = FormatSize(file.Size);
+        SelectedFileDate = DateTimeOffset.FromUnixTimeSeconds(file.ModifiedDate).DateTime.ToString("dd MMM yyyy");
+        SelectedFileHash = file.Hash.Length > 32 ? file.Hash[..32] + "…" : (file.Hash.Length > 0 ? file.Hash : "—");
+        SelectedFilePath = file.Path;
+        PreviewTitle = file.Filename;
+        var text = _search.GetExtractedText(file.Id);
+        PreviewText = !string.IsNullOrEmpty(text) ? text : "(no text — click Extract)";
+
+        Tags.Clear();
+        if (_indexer != null)
         {
-            SelectedFileSize = FormatSize(file.Size);
-            SelectedFileDate = DateTimeOffset.FromUnixTimeSeconds(file.ModifiedDate).DateTime.ToString("dd MMM yyyy");
-            SelectedFileHash = file.Hash.Length > 32 ? file.Hash[..32] + "…" : (file.Hash.Length > 0 ? file.Hash : "—");
-            SelectedFilePath = file.Path;
-            PreviewTitle = file.Filename;
-            var text = _search.GetExtractedText(file.Id);
-            PreviewText = !string.IsNullOrEmpty(text) ? text : "(no text extracted — click Extract)";
-            Tags.Clear();
-            if (_indexer != null)
-            {
-                foreach (var tag in _indexer.GetTags(file.Id)) Tags.Add(tag);
-                Notes = _indexer.GetNote(file.Id);
-            }
+            foreach (var tag in _indexer.GetTags(file.Id)) Tags.Add(tag);
+            Notes = _indexer.GetNote(file.Id);
         }
     }
 

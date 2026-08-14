@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using DocuSearch.Avalonia.ViewModels;
 
 namespace DocuSearch.Avalonia;
 
@@ -12,7 +11,7 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
-    private MainViewModel? ViewModel => DataContext as MainViewModel;
+    private ViewModels.MainViewModel? ViewModel => DataContext as ViewModels.MainViewModel;
 
     protected override void OnLoaded(RoutedEventArgs e)
     {
